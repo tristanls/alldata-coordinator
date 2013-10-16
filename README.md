@@ -80,7 +80,7 @@ It is worth noting that due to the nature of the kind of data stored in AllData,
   * [new AllDataCoordinator(localStorage, options)](#new-alldatacoordinatorlocalstorage-options)
   * [allDataCoordinator.addPeer(peer, \[options\])](#alldatacoordinatoraddpeerpeer-options)
   * [allDataCoordinator.dropPeer(peer, \[options\])](#alldatacoordinatordroppeerpeer-options)
-  * [allDataCoordinator.put(key, event, \[commitLevel\], callback)](#alldatacoordinatorputkey-event-commitLevel-callback)
+  * [allDataCoordinator.put(key, event, \[commitLevel\], callback)](#alldatacoordinatorputkey-event-commitlevel-callback)
   * [Event '_put'](#event-_put)
 
 ### new AllDataCoordinator(localStorage, options)
