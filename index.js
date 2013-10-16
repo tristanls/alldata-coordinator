@@ -210,7 +210,7 @@ AllDataCoordinator.prototype.put = function put (key, event, commitLevel, callba
     // commitLevel is optional
     if (typeof commitLevel === "function") {
         callback = commitLevel;
-        commitLevel = null;
+        commitLevel = self.commitLevel;
     }
 
     // check that we have enough machines to satisfy replication factor
@@ -262,7 +262,8 @@ AllDataCoordinator.prototype.put = function put (key, event, commitLevel, callba
                     callback(new Error("" + noOfReplicasToStart + 
                         " replicas have NOT been created."));
                 }
-                return; // done
+
+                return; // no more peers to put replicas on
             }
 
             self.emit('_put', peer, key, event, function (error) {
@@ -301,7 +302,7 @@ AllDataCoordinator.prototype.put = function put (key, event, commitLevel, callba
         // put succeeded, check if we should acknowledge according to commitLevel
         --noOfReplicasToCommit;
         if (!acknowledgmentSent) {
-            switch (self.commitLevel) {
+            switch (commitLevel) { // local not global so it can be modified
                 case AllDataCoordinator.ONE:
                     acknowledgmentSent = true;
                     return callback();
