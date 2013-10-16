@@ -1,0 +1,24 @@
+{
+  "name": "alldata-coordinator",
+  "version": "0.1.0",
+  "description": "AllData request coordinator module",
+  "scripts": {
+    "test": "node scripts/test.js"
+  },
+  "main": "index.js",
+  "devDependencies": {
+    "nodeunit": "0.8.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:tristanls/alldata-coordinator.git"
+  },
+  "keywords": [
+    "alldata",
+    "peer",
+    "server",
+    "http"
+  ],
+  "author": "Tristan Slominski <tristan.slominski@gmail.com>",
+  "license": "MIT"
+}
