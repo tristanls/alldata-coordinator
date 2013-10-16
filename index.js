@@ -68,10 +68,10 @@ var AllDataCoordinator = module.exports = function AllDataCoordinator (localStor
         self.replicationStrategy.otherZoneReplicas || 0;
 
     self.noOfPeers = 0;
-    self.local = []; // list of local peers (same zone)
-    self.zoneMap = {}; // map of zones from identifier to list of peers
+    self.local = {}; // map of peers by id (local zone)
+    self.zoneMap = {}; // map from zone identifier to map of peers by id
     self.zones = []; // list of zone identifiers for random zone selection
-    self.regionMap = {}; // map of regions from identifier to list of peers
+    self.regionMap = {}; // map from region identifier to map of peers by id
     self.regions = []; // list of region identifiers for random region selection
 };
 
@@ -105,8 +105,8 @@ AllDataCoordinator.prototype.addPeer = function addPeer (peer, options) {
 
         // add peer to the zone map if unknown (initialize if necessary)
         self.zoneMap[options.zone] = self.zoneMap[options.zone] || [];
-        if (self.zoneMap[options.zone].indexOf(peer.id) == -1) {
-            self.zoneMap[options.zone].push(peer);
+        if (!self.zoneMap[options.zone][peer.id]) {
+            self.zoneMap[options.zone][peer.id] = peer;
             self.noOfPeers++;
         }
         return; // ignore options.region parameter if zone was specified
@@ -120,8 +120,8 @@ AllDataCoordinator.prototype.addPeer = function addPeer (peer, options) {
 
         // add peer to the region map if unknown (initialize if necessary)
         self.regionMap[options.region] = self.regionMap[options.region] || [];
-        if (self.regionMap[options.region].indexOf(peer.id) == -1) {
-            self.regionMap[options.region].push(peer);
+        if (!self.regionMap[options.region][peer.id]) {
+            self.regionMap[options.region][peer.id] = peer;
             self.noOfPeers++;
         }
         return; // added the peer, all done
@@ -129,8 +129,8 @@ AllDataCoordinator.prototype.addPeer = function addPeer (peer, options) {
 
     // no zone or region specified, this means a local peer
     // add peer to local if unknown
-    if (self.local.indexOf(peer.id) == -1) {
-        self.local.push(peer);
+    if (!self.local[peer.id]) {
+        self.local[peer.id] = peer;
         self.noOfPeers++;
     }
 };
@@ -154,15 +154,14 @@ AllDataCoordinator.prototype.dropPeer = function dropPeer (peer, options) {
 
     if (options.zone) {
         // remove peer from zoneMap
-        self.zoneMap[options.zone] = self.zoneMap[options.zone] || [];
-        index = self.zoneMap[options.zone].indexOf(peer.id);
-        if (index != -1) {
-            self.zoneMap[options.zone].splice(index, 1);
+        self.zoneMap[options.zone] = self.zoneMap[options.zone] || {};
+        if (self.zoneMap[options.zone][peer.id]) {
+            delete self.zoneMap[options.zone][peer.id];
             self.noOfPeers--;
         }
 
         // check if any peers left in zone
-        if (self.zoneMap[options.zone].length == 0) {
+        if (Object.keys(self.zoneMap[options.zone]).length == 0) {
             delete self.zoneMap[options.zone];
             index = self.zones.indexOf(options.zone);
             self.zones.splice(index, 1);
@@ -172,15 +171,14 @@ AllDataCoordinator.prototype.dropPeer = function dropPeer (peer, options) {
 
     if (options.region) {
         // remove peer from regionMap
-        self.regionMap[options.region] = self.regionMap[options.region] || [];
-        index = self.regionMap[options.region].indexOf(peer.id);
-        if (index != -1) {
-            self.regionMap[options.region].splice(index, 1);
+        self.regionMap[options.region] = self.regionMap[options.region] || {};
+        if (self.regionMap[options.region][peer.id]) {
+            delete self.regionMap[options.region][peer.id];
             self.noOfPeers--;
         }
 
         // check if any peers left in region
-        if (self.regionMap[options.region].length == 0) {
+        if (Object.keys(self.regionMap[options.region]).length == 0) {
             delete self.regionMap[options.region];
             index = self.regions.indexOf(options.region);
             self.regions.splice(index, 1);
@@ -190,9 +188,8 @@ AllDataCoordinator.prototype.dropPeer = function dropPeer (peer, options) {
 
     // no zone or region specified, this means a local peer
     // remove peer from local
-    index = self.local.indexOf(peer.id);
-    if (index != -1) {
-        self.local.splice(index, 1);
+    if (self.local[peer.id]) {
+        delete self.local[peer.id];
         self.noOfPeers--;
     }
 };
@@ -236,18 +233,21 @@ AllDataCoordinator.prototype.put = function put (key, event, commitLevel, callba
 
                 // get a list of all untried peers everywhere (getItDoneModePeers)
                 self.zones.forEach(function (zone) {
-                    self.zoneMap[zone].forEach(function (p) {
+                    Object.keys(self.zoneMap[zone]).forEach(function (k) {
+                        var p = self.zoneMap[zone][k];
                         if (replicaPeerIds.indexOf(p.id) == -1)
                             getItDoneModePeers.push(p);
                     });
                 });
                 self.regions.forEach(function (region) {
-                    self.regionMap[region].forEach(function (p) {
+                    Object.keys(self.regionMap[region]).forEach(function (k) {
+                        var p = self.regionMap[region][k];
                         if (replicaPeerIds.indexOf(p.id) == -1)
                             getItDoneModePeers.push(p);
                     });
                 });
-                self.local.forEach(function (p) {
+                Object.keys(self.local).forEach(function (k) {
+                    var p = self.local[k];
                     if (replicaPeerIds.indexOf(p.id) == -1)
                         getItDoneModePeers.push(p);
                 });
@@ -336,7 +336,7 @@ AllDataCoordinator.prototype.put = function put (key, event, commitLevel, callba
     });
     
     if (--noOfReplicasToStart <= 0) 
-        return; // done staring replicas
+        return; // done starting replicas
 
     // place replicas in other zones in same region
     if (self.replicationStrategy.otherZoneReplicas > 0) {
@@ -346,8 +346,10 @@ AllDataCoordinator.prototype.put = function put (key, event, commitLevel, callba
             for (i = 0; i < self.zones.length; i++) {
                 var zone = self.zones[i];
                 // select random peer
-                index = Math.floor(Math.random() * self.zoneMap[zone].length);
-                var peer = self.zoneMap[zone][index];
+                var zonePeerIds = Object.keys(self.zoneMap[zone]);
+                index = Math.floor(Math.random() * zonePeerIds.length);
+                var id = zonePeerIds[index];
+                var peer = self.zoneMap[zone][id];
 
                 replicaPeerIds.push(peer.id);
 
@@ -365,8 +367,10 @@ AllDataCoordinator.prototype.put = function put (key, event, commitLevel, callba
                 index = Math.floor(Math.random() * zones.length);
                 var zone = zones.splice(index, 1); // reduce choice for next one
                 // select random peer
-                index = Math.floor(Math.random() * self.zoneMap[zone].length);
-                var peer = self.zoneMap[zone][index];
+                var zonePeerIds = Object.keys(self.zoneMap[zone]);
+                index = Math.floor(Math.random() * zonePeerIds.length);
+                var id = zonePeerIds[index];
+                var peer = self.zoneMap[zone][id];
 
                 replicaPeerIds.push(peer.id);
 
@@ -381,7 +385,8 @@ AllDataCoordinator.prototype.put = function put (key, event, commitLevel, callba
         } else {
             var peers = [];
             self.zones.forEach(function (zone) {
-                self.zoneMap[zone].forEach(function (p) {
+                Object.keys(self.zoneMap[zone]).forEach(function (k) {
+                    var p = self.zoneMap[zone][k];
                     peers.push(p);
                 });
             });
@@ -428,8 +433,10 @@ AllDataCoordinator.prototype.put = function put (key, event, commitLevel, callba
             for (i = 0; i < self.regions.length; i++) {
                 var region = self.regions[i];
                 // select random peer
-                index = Math.floor(Math.random() * self.regionMap[region].length);
-                var peer = self.regionMap[region][index];
+                var regionPeerIds = Object.keys(self.regionMap[region]);
+                index = Math.floor(Math.random() * regionPeerIds.length);
+                var id = regionPeerIds[index];
+                var peer = self.regionMap[region][id];
 
                 replicaPeerIds.push(peer.id);
 
@@ -447,8 +454,10 @@ AllDataCoordinator.prototype.put = function put (key, event, commitLevel, callba
                 index = Math.floor(Math.random() * regions.length);
                 var region = region.splice(index, 1); // reduce choice for next one
                 // select random peer
-                index = Math.floor(Math.random() * self.regionMap[region].length);
-                var peer = self.regionMap[region][index];
+                var regionPeerIds = Object.keys(self.regionMap[region]);
+                index = Math.floor(Math.random() * regionPeerIds.length);
+                var id = regionPeerIds[index];
+                var peer = self.regionMap[region][id];
 
                 replicaPeerIds.push(peer.id);
 
@@ -463,7 +472,8 @@ AllDataCoordinator.prototype.put = function put (key, event, commitLevel, callba
         } else {
             var peers = [];
             self.regions.forEach(function (region) {
-                self.regionMap[region].forEach(function (p) {
+                Object.keys(self.regionMap[region]).forEach(function (k) {
+                    var p = self.regionMap[region][k];
                     peers.push(p);
                 });
             });
@@ -503,11 +513,12 @@ AllDataCoordinator.prototype.put = function put (key, event, commitLevel, callba
     }
 
     // place replicas in local zone
-    var peers = self.local.slice(); // copy
-    for (i = 0; i < peers.length; i++) {
+    var peerIds = Object.keys(self.local); // copy
+    for (i = 0; i < peerIds.length; i++) {
         // select random peer
-        index = Math.floor(Math.random() * peers.length);
-        var peer = peers.splice(index, 1);
+        index = Math.floor(Math.random() * peerIds.length);
+        var peerId = peerIds.splice(index, 1);
+        var peer = self.local[peerId];
         replicaPeerIds.push(peer.id);
 
         self.emit('_put', peer, key, event, function (error) {
