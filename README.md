@@ -69,6 +69,8 @@ allDataPeerServer.listen(function () {
 
 AllDataCoordinator coordinates replication between peer nodes as specified by the replication and zone and region placement policies.
 
+It is worth noting that due to the nature of the kind of data stored in AllData, there is no requirement for consistent hashing. Instead, replicas are selected randomly according with placement policies. This is in contrast to data storage systems with more restrictive placement requirements. This has the advantage that if parts of the cluster are down and some zones or regions are unavailable, it still may be possible to succeed in replication by falling back onto writing replicas located in a different region, different zone, or other nodes in the local zone.
+
 ## Documentation
 
 ### AllDataCoordinator
@@ -82,6 +84,16 @@ AllDataCoordinator coordinates replication between peer nodes as specified by th
   * [Event '_put'](#event-_put)
 
 ### new AllDataCoordinator(localStorage, options)
+
+  * `localStorage`: _Object_ Instance of AllData storage module local to the AllDataCoordinator.
+  * `options`: _Object_ _(Default: undefined)_
+    * `commitLevel`: _String_ _(Default: "QUORUM")_ One of: `ONE`, `QUORUM`, `ALL`. `ONE` means that once local storage stored the event, the request will be acknowledged. `QUORUM` means that once majority of replicas stored the event, the request will be acknowledged (notice that `QUORUM` for `replicationFactor` of 1 is 1). `ALL` means that once all replicas stored the event, the request will be acknowledged.
+    * `replicationFactor`: _Integer_ _(Default: 1)_ Number of replicas (including local one) to create for any `put` event.
+    * `replicationStrategy`: _Object_
+      * `otherZoneReplicas`: _Integer_ _(Default: 0)_ Number of replicas to place explicitly in other zones within the local region.    
+      * `otherRegionReplicas`: _Integer_ _(Default: 0)_ Number of replicas to place explicitly in other regions.
+
+Creates a new instance of AllDataCoordinator.
 
 Note that the following must hold:
 
@@ -137,19 +149,15 @@ the following number of replicas would be created:
   3. other regions - 0 replicas
   4. same zone - 2 replicas
 
-If any of the replicas fails to be saved, the AllDataCoordinator will go into "get it done" mode and attempt to spread out the errored replica to any available peer that hasn't been selected already, so that the `replicationFactor` is preserved.
+If any of the replicas fails to succeed in put operation, the AllDataCoordinator will go into "get it done" mode and attempt to spread out the failed replica to any available peer that hasn't been selected already, so that the `replicationFactor` is honored.
 
 ### allDataCoordinator.addPeer(peer, options)
 
   * `peer`: _Object_ Peer to add to coordinator's awareness.
     * `id`: _String_ Unique `peer` identifier.
   * `options`: _Object_ _(Default: {})_
-    * `zone`: _String _(Default: undefined)_ If provided, an identifier in the
-            local region for the `zone` the `peer` belongs to. If `zone` is
-            specified `options.region` will be ignored.
-    * `region`: _String_ _(Default: undefined)_ If provided, an identifier for
-            a remote region the `peer` belongs to. This parameter is ignored if
-            `options.zone` is specified.
+    * `zone`: _String _(Default: undefined)_ If provided, an identifier in the local region for the `zone` the `peer` belongs to. If `zone` is specified `options.region` will be ignored.
+    * `region`: _String_ _(Default: undefined)_ If provided, an identifier for a remote region the `peer` belongs to. This parameter is ignored if `options.zone` is specified.
 
 Adds the `peer` to AllDataCoordinator's awareness for selection when replicas need to be created.
 
@@ -158,12 +166,8 @@ Adds the `peer` to AllDataCoordinator's awareness for selection when replicas ne
   * `peer`: _Object_ Peer to drop from coordinator's awareness.
     * `id`: _String_ Unique `peer` identifier.
   * `options`: _Object_ _(Default: {})_
-    * `zone`: _String _(Default: undefined)_ If provided, an identifier in the
-            local region for the `zone` the `peer` belongs to. If `zone` is
-            specified `options.region` will be ignored.
-    * `region`: _String_ _(Default: undefined)_ If provided, an identifier for
-            a remote region the `peer` belongs to. This parameter is ignored if
-            `options.zone` is specified.
+    * `zone`: _String _(Default: undefined)_ If provided, an identifier in the local region for the `zone` the `peer` belongs to. If `zone` is specified `options.region` will be ignored.
+    * `region`: _String_ _(Default: undefined)_ If provided, an identifier for a remote region the `peer` belongs to. This parameter is ignored if `options.zone` is specified.
 
 Drops the `peer` from AllDataCoordinator's awareness so that it is no longer considered for replica placement.
 
@@ -171,10 +175,10 @@ Drops the `peer` from AllDataCoordinator's awareness so that it is no longer con
 
   * `key`: _String_ AllData key generated for the `event`.
   * `event`: _Object_ JavaScript object representation of the event to `put`.
-  * `commitLevel`: _String_ _(Default: AllDataCoordinator default)_ Commit level
-          for this `put` if different from `commitLevel` set for AllDataCoordinator.
-  * `callback`: _Function_ `function (error) {}` Callback to call on success or
-          failure.
+  * `commitLevel`: _String_ _(Default: AllDataCoordinator default)_ Commit level for this `put` if different from `commitLevel` set for AllDataCoordinator.
+  * `callback`: _Function_ `function (error) {}` Callback to call on success or failure.
+
+Coordinates the replication of the `event` according to specified `commitLevel`, `replicationFactor` and `replicationStrategy`.
 
 ### Event `_put`
 
