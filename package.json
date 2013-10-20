@@ -1,6 +1,6 @@
 {
   "name": "alldata-coordinator",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "AllData request coordinator module",
   "scripts": {
     "test": "node scripts/test.js"
