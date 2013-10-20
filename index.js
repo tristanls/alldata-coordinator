@@ -453,7 +453,7 @@ AllDataCoordinator.prototype.put = function put (key, event, commitLevel, callba
             while (noOfRegionReplicas > 0) {
                 // select random region
                 index = Math.floor(Math.random() * regions.length);
-                var region = region.splice(index, 1); // reduce choice for next one
+                var region = regions.splice(index, 1); // reduce choice for next one
                 // select random peer
                 var regionPeerIds = Object.keys(self.regionMap[region]);
                 index = Math.floor(Math.random() * regionPeerIds.length);
